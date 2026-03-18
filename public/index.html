@@ -1223,7 +1223,7 @@
 
     async function fetchProducts() {
         try {
-            const res = await fetch(`${API_URL}/products`);
+            const res = await fetch('/api/products');
             if (!res.ok) throw new Error('Failed to fetch');
             
             products = await res.json();

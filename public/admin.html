@@ -172,183 +172,149 @@
     </div>
 
     <script>
-        const API = 'http://localhost:3000/api';
-        let isLoggedIn = false;
+    // CHANGE: Removed localhost URL so it works on Render
+    const API = '/api';
+    let isLoggedIn = false;
 
-        // --- Login ---
-        async function attemptLogin() {
-            const pass = document.getElementById('adminPassword').value;
-            const errorEl = document.getElementById('loginError');
-            errorEl.classList.add('hidden');
-            
-            try {
-                const res = await fetch(`${API}/login`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ password: pass })
-                });
-                const data = await res.json();
-                if (data.success) {
-                    isLoggedIn = true;
-                    document.getElementById('loginScreen').classList.add('hidden');
-                    document.getElementById('adminDashboard').classList.remove('hidden');
-                    loadProducts();
-                } else {
-                    errorEl.classList.remove('hidden');
-                    document.getElementById('adminPassword').classList.add('border-red-500');
-                }
-            } catch (err) {
-                alert('Cannot connect to server. Is it running?');
+    // --- Login ---
+    async function attemptLogin() {
+        const pass = document.getElementById('adminPassword').value;
+        const errorEl = document.getElementById('loginError');
+        
+        try {
+            const res = await fetch(`${API}/login`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ password: pass })
+            });
+
+            const data = await res.json();
+
+            if (data.success) {
+                isLoggedIn = true;
+                showDashboard();
+            } else {
+                errorEl.classList.remove('hidden');
+                document.getElementById('adminPassword').classList.add('border-red-500');
             }
+        } catch (err) {
+            alert('Could not connect to server.');
         }
+    }
 
-        // --- Navigation ---
-        function showView(view) {
-            document.getElementById('addView').classList.add('hidden');
-            document.getElementById('manageView').classList.add('hidden');
-            document.getElementById(`btn-add`).classList.remove('bg-white/10');
-            document.getElementById(`btn-manage`).classList.remove('bg-white/10');
+    function showDashboard() {
+        document.getElementById('loginScreen').classList.add('hidden');
+        document.getElementById('adminDashboard').classList.remove('hidden');
+        loadProducts();
+    }
+
+    // --- Navigation ---
+    function showView(view) {
+        document.getElementById('addView').classList.add('hidden');
+        document.getElementById('manageView').classList.add('hidden');
+        document.getElementById(`btn-add`).classList.remove('bg-white/10');
+        document.getElementById(`btn-manage`).classList.remove('bg-white/10');
+        
+        document.getElementById(`${view}View`).classList.remove('hidden');
+        document.getElementById(`btn-${view}`).classList.add('bg-white/10');
+        
+        if (view === 'manage') loadProducts();
+    }
+
+    // --- Image Upload ---
+    document.getElementById('imageInput').addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        document.getElementById('fileName').textContent = file.name;
+        
+        // Upload to server
+        const formData = new FormData();
+        formData.append('image', file);
+
+        try {
+            const res = await fetch(`${API}/upload`, { method: 'POST', body: formData });
+            const data = await res.json();
             
-            document.getElementById(`${view}View`).classList.remove('hidden');
-            document.getElementById(`btn-${view}`).classList.add('bg-white/10');
-            
-            if (view === 'manage') loadProducts();
-        }
-
-        // --- Image Upload ---
-        document.getElementById('imageInput').addEventListener('change', async (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-
-            document.getElementById('fileName').textContent = file.name;
-            document.getElementById('uploadPlaceholder').classList.add('opacity-50');
-            
-            const formData = new FormData();
-            formData.append('image', file);
-
-            try {
-                const res = await fetch(`${API}/upload`, { method: 'POST', body: formData });
-                const data = await res.json();
-                
-                if (data.url) {
-                    document.getElementById('imageUrl').value = data.url;
-                    document.getElementById('preview').src = data.url;
-                    document.getElementById('preview').classList.remove('hidden');
-                    document.getElementById('uploadPlaceholder').classList.add('hidden');
-                } else {
-                    alert('Upload failed: ' + (data.error || 'Unknown error'));
-                    document.getElementById('uploadPlaceholder').classList.remove('opacity-50');
-                }
-            } catch (err) {
-                alert('Error uploading image');
-                document.getElementById('uploadPlaceholder').classList.remove('opacity-50');
+            if (data.url) {
+                document.getElementById('imageUrl').value = data.url;
+                document.getElementById('preview').src = data.url;
+                document.getElementById('preview').classList.remove('hidden');
+            } else {
+                alert('Upload failed: ' + (data.error || 'Unknown error'));
             }
+        } catch (err) {
+            alert('Error uploading image');
+            console.error(err);
+        }
+    });
+
+    // --- Save Product ---
+    document.getElementById('productForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const product = {
+            name: document.getElementById('name').value,
+            price: Number(document.getElementById('price').value),
+            originalPrice: document.getElementById('originalPrice').value ? Number(document.getElementById('originalPrice').value) : null,
+            category: document.getElementById('category').value,
+            stock: Number(document.getElementById('stock').value),
+            rating: Number(document.getElementById('rating').value),
+            bestSeller: document.getElementById('bestSeller').checked,
+            flashDeal: document.getElementById('flashDeal').checked,
+            description: document.getElementById('description').value,
+            image: document.getElementById('imageUrl').value
+        };
+
+        const res = await fetch(`${API}/products`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(product)
         });
 
-        // --- Save Product ---
-        document.getElementById('productForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const btn = document.getElementById('submitBtn');
-            const spinner = document.getElementById('loadingSpinner');
-            
-            // Validation
-            if (!document.getElementById('imageUrl').value) {
-                alert('Please upload an image first!');
-                return;
-            }
+        if (res.ok) {
+            alert('Product Added!');
+            e.target.reset();
+            document.getElementById('preview').classList.add('hidden');
+            document.getElementById('fileName').textContent = 'No file chosen';
+        } else {
+            alert('Error adding product');
+        }
+    });
 
-            const product = {
-                name: document.getElementById('name').value,
-                price: Number(document.getElementById('price').value),
-                originalPrice: document.getElementById('originalPrice').value ? Number(document.getElementById('originalPrice').value) : null,
-                category: document.getElementById('category').value,
-                stock: Number(document.getElementById('stock').value),
-                rating: Number(document.getElementById('rating').value),
-                bestSeller: document.getElementById('bestSeller').checked,
-                flashDeal: document.getElementById('flashDeal').checked,
-                description: document.getElementById('description').value,
-                image: document.getElementById('imageUrl').value,
-                reviews: Math.floor(Math.random() * 50) + 10
-            };
+    // --- Load Products ---
+    async function loadProducts() {
+        const res = await fetch(`${API}/products`);
+        const products = await res.json();
+        const container = document.getElementById('productList');
 
-            // UI Loading State
-            btn.disabled = true;
-            spinner.classList.remove('hidden');
+        if (products.length === 0) {
+            container.innerHTML = '<p class="text-gray-500">No products found.</p>';
+            return;
+        }
 
-            try {
-                const res = await fetch(`${API}/products`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify(product)
-                });
-
-                if (res.ok) {
-                    // Show Success Alert
-                    document.getElementById('successAlert').classList.remove('hidden');
-                    
-                    // Reset Form
-                    e.target.reset();
-                    document.getElementById('preview').classList.add('hidden');
-                    document.getElementById('uploadPlaceholder').classList.remove('hidden', 'opacity-50');
-                    document.getElementById('fileName').textContent = 'PNG, JPG up to 10MB';
-                    document.getElementById('imageUrl').value = '';
-                    
-                    // Hide alert after 5 seconds
-                    setTimeout(() => {
-                        document.getElementById('successAlert').classList.add('hidden');
-                    }, 5000);
-                } else {
-                    alert('Error adding product');
-                }
-            } catch (err) {
-                alert('Network error');
-            } finally {
-                btn.disabled = false;
-                spinner.classList.add('hidden');
-            }
-        });
-
-        // --- Load Products ---
-        async function loadProducts() {
-            const container = document.getElementById('productList');
-            container.innerHTML = '<p class="text-gray-500 text-center py-4">Loading...</p>';
-
-            try {
-                const res = await fetch(`${API}/products`);
-                const products = await res.json();
-
-                if (products.length === 0) {
-                    container.innerHTML = '<p class="text-gray-500 text-center py-8">No products added yet.</p>';
-                    return;
-                }
-
-                container.innerHTML = products.map(p => `
-                    <div class="flex items-center justify-between p-4 border rounded-xl hover:shadow-sm transition">
-                        <div class="flex items-center gap-4">
-                            <img src="${p.image}" onerror="this.src='https://via.placeholder.com/100'" class="w-20 h-20 rounded-lg object-cover bg-gray-100">
-                            <div>
-                                <h4 class="font-semibold">${p.name}</h4>
-                                <p class="text-sm text-gray-500">N${p.price.toLocaleString()} <span class="text-xs bg-gray-100 px-2 py-1 rounded ml-2">${p.category}</span></p>
-                                <p class="text-xs text-gray-400 mt-1">Stock: ${p.stock}</p>
-                            </div>
-                        </div>
-                        <button onclick="deleteProd(${p.id})" class="text-red-500 hover:bg-red-50 p-2 rounded-lg transition">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                        </button>
+        container.innerHTML = products.map(p => `
+            <div class="flex items-center justify-between p-3 border rounded-xl bg-gray-50">
+                <div class="flex items-center gap-3">
+                    <img src="${p.image}" class="w-16 h-16 rounded-lg object-cover bg-gray-200">
+                    <div>
+                        <h4 class="font-semibold">${p.name}</h4>
+                        <p class="text-sm text-gray-500">N${p.price.toLocaleString()}</p>
                     </div>
-                `).join('');
-            } catch (err) {
-                container.innerHTML = '<p class="text-red-500 text-center py-8">Failed to load products.</p>';
-            }
-        }
+                </div>
+                <button onclick="deleteProd(${p.id})" class="text-red-500 hover:bg-red-100 p-2 rounded-lg">
+                    Delete
+                </button>
+            </div>
+        `).join('');
+    }
 
-        async function deleteProd(id) {
-            if(confirm('Are you sure you want to delete this product?')) {
-                await fetch(`${API}/products/${id}`, { method: 'DELETE' });
-                loadProducts();
-            }
+    async function deleteProd(id) {
+        if(confirm('Delete this product?')) {
+            await fetch(`${API}/products/${id}`, { method: 'DELETE' });
+            loadProducts();
         }
-    </script>
+    }
+</script>
 </body>
 </html>
